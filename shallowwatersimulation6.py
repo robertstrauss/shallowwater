@@ -7,11 +7,12 @@
 get_ipython().run_line_magic('matplotlib', 'inline')
 import numpy as np
 import matplotlib as mpl
+from matplotlib import animation, rc
 from mpl_toolkits.mplot3d import axes3d
 import matplotlib.pyplot as plt
 import ipywidgets as widgets
 from ipywidgets import interactive, Button
-from IPython.display import display
+from IPython.display import display, HTML
 
 
 #
@@ -37,6 +38,7 @@ def div(u, v, DX):
 
 
 def planegauss(shape, w = 1/2, win=((-2, 2), (-2, 2))): # function to generate a gaussian across a 2d array, used for gaussian initial condition
+    h=np.empty(shape, dtype=np.float32)
     npx = np.linspace( win[0][0], win[0][1], shape[0] )
     npy = np.linspace( win[1][0],win[1][1], shape[1] )
     npxx, npyy = np.meshgrid(npx, npy)
@@ -47,6 +49,7 @@ def planegauss(shape, w = 1/2, win=((-2, 2), (-2, 2))): # function to generate a
 
 
 def lingauss(shape, w = 1/2, ax = 0, win = (-2, 2)):
+    h=np.empty(shape, dtype=np.float32)
     npx = np.linspace( win[0], win[1], shape[0] )
     npy = np.linspace( win[0], win[1], shape[1] )
     npxx, npyy = np.meshgrid(npy, npx)
@@ -56,7 +59,7 @@ def lingauss(shape, w = 1/2, ax = 0, win = (-2, 2)):
 #
 
 
-# In[21]:
+# In[3]:
 
 
 #
@@ -94,9 +97,10 @@ class State():
         
         self.wavespeed = np.sqrt(np.max(self.h)*p.g)
         
-        self.n = n
-        self.u = u # global x vel array
-        self.v = v # global y vel array
+        self.n = np.asarray(n, dtype=np.float32)
+        self.u = np.asarray(u, dtype=np.float32) # global x vel array
+        self.v = np.asarray(v, dtype=np.float32) # global y vel array
+        
         
         assert (np.isscalar(self.h) or self.h.shape == self.h.shape) # 'or' is short circuit
         self.calcDt()
@@ -111,10 +115,12 @@ class State():
 
 
 state1 = State(initcons.DX, initcons.h, initcons.n, initcons.u, initcons.v)
+
+
 #
 
 
-# In[27]:
+# In[4]:
 
 
 #
@@ -127,7 +133,7 @@ def dispimg(a):
     plt.colorbar()
     return
 
-def disp3d(aa, box = (None, None, None), fsize = (10, 10), lines=(35,35)):
+def disp3d(aa, box = (None, None, None), fsize = (8, 8), lines=(35,35)):
     xlim = box[0]
     ylim = box[1]
     zlim = box[2]
@@ -162,7 +168,20 @@ def disp3d(aa, box = (None, None, None), fsize = (10, 10), lines=(35,35)):
     
     return
 
-def vect(u, v, xlim='default', ylim='default', fsize=(10, 10), arws=(10, 10), arwsz=100):
+def contour(a, fsize = (8, 8)):
+    x = np.arange(0, a.shape[0], dtype=np.float32)
+    y = np.arange(0, a.shape[1], dtype=np.float32)
+    xx, yy = np.meshgrid(x, y)
+    
+    plt.figure(figsize=fsize)
+    plt.contour(xx, yy, a)
+    plt.title("water surface height")
+    plt.colorbar()
+    
+    return
+
+
+def vect(u, v, xlim='default', ylim='default', fsize=(8, 8), arws=(10, 10), arwsz=100):
     if (xlim=='default'): xlim = (0, u.shape[0])
     if (ylim=='default'): ylim = (0, v.shape[1])
     arws = (int(arws[0]), int(arws[1]))
@@ -190,7 +209,7 @@ def vect(u, v, xlim='default', ylim='default', fsize=(10, 10), arws=(10, 10), ar
 #
 
 
-# In[28]:
+# In[5]:
 
 
 #
@@ -198,16 +217,21 @@ def vect(u, v, xlim='default', ylim='default', fsize=(10, 10), arws=(10, 10), ar
 
 #display initial conditions, tests display functions
 
-print("height")
-disp3d((state1.n, -state1.h))
+
+contour(state1.n)
+
+
+# print("height")
+# disp3d((state1.n, -state1.h)) # 3d wireframe plot
 
 print("group velocity")
 vect(d_dx(state1.u, state1.DX[0]), d_dy(state1.v, state1.DX[1]), arws=(20, 20))
 
+
 #
 
 
-# In[36]:
+# In[6]:
 
 
 #
@@ -260,6 +284,8 @@ def fbfeedback(h, n, u, v, dt, DX, doland=land): # forward backward feedback
     
     beta = 1/3
     eps = 2/3
+    one = np.single(1)
+    p5 = np.single(0.5)
     
     n1g = n + dndt(h, n, u, v, DX)*dt
     u1g = u + ( beta*dudt(n1g, DX[0]) +  (1-beta)*dudt(n, DX[0]) )*dt
@@ -287,7 +313,7 @@ def timestep(h, n, u, v, dt, DX): return fbfeedback(h, n, u, v, dt, DX, doland=l
 #
 
 
-# In[30]:
+# In[24]:
 
 
 #
@@ -310,7 +336,6 @@ def _simulate(h, n, u, v, t, DX, dt = 1):
         
         itr += dt
     
-    print(n.dtype, u.dtype, v.dtype)
     return n, u ,v
 
 
@@ -322,7 +347,7 @@ def simulate(state, t):
 #
 
 
-# In[9]:
+# In[20]:
 
 
 #
@@ -335,8 +360,10 @@ def rendersim(state, t):
     
 #     print('integral dxdy: ')
 #     print(np.sum(endstate.n))
+    
     # display water height
-    disp3d((endstate.n, -endstate.h))
+#     disp3d((endstate.n, -endstate.h))
+    contour(endstate.n)
     # display vector feild of velocity
     vect(d_dx(endstate.u, endstate.DX[0]), d_dy(endstate.v, endstate.DX[1]), arws = (30, 30))
     
@@ -345,7 +372,7 @@ def rendersim(state, t):
 #
 
 
-# In[37]:
+# In[21]:
 
 
 #
@@ -361,6 +388,34 @@ display(controls)
 
 #                       state = state1,
 #
+
+
+# In[1]:
+
+
+
+def motioncon(state, name, t, frames=60, fsize=(8,8)):
+    x = np.arange(0, state.n.shape[0], dtype=np.float32)
+    y = np.arange(0, state.n.shape[1], dtype=np.float32)
+    xx, yy = np.meshgrid(x, y)
+    fig = plt.figure(figsize=fsize)
+    
+    def animate(i):
+        s = i*t/frames
+        endState = simulate(state, s)
+        z = endState.n
+        frame = plt.contourf(xx, yy, z)
+        
+#         state.n, state.u, state.v = timestep(state.h, state.n, state.u, state.v, dt, state.DX)
+        return frame
+    plt.title("water surface height")
+#     plt.colorbar()
+    anim = animation.FuncAnimation(fig, animate, frames=frames, repeat=True)
+    anim.save('../results/'+name+'.mp4')
+    
+    return anim
+
+motioncon(state1, 'waveisland1', 150, 20)
 
 
 # In[11]:
@@ -507,4 +562,29 @@ foof
 
 tpl = np.array([10, 30])
 -tpl
+
+
+# In[18]:
+
+
+a = np.arange(32,dtype=np.float32).reshape(4,8)
+(a*1/3+0.5).dtype
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
 
