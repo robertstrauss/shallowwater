@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+
 # coding: utf-8
 
 # In[1]:
@@ -27,10 +27,10 @@ from IPython.display import display, HTML
 # useful math functions
 
 def d_dx(a, dx):
-    ddx = ( a[:-1] - a[1:] )*(-1/dx) 
+    ddx = -( a[:-1] - a[1:] )/(dx) 
     return ddx
 def d_dy(a, dy):
-    ddy = ( a[:,:-1] - a[:,1:] )*(-1/dy)
+    ddy = -( a[:,:-1] - a[:,1:] )/(dy)
     return ddy
 def div(u, v, dx, dy):
     div = d_dx(u, dx) + d_dy(v, dy)
@@ -77,8 +77,8 @@ class initcons():
     
     dx = np.single(100, dtype=np.float32) # meters
     dy = np.single(100, dtype=np.float32) # meters
-    lat = np.linspace(-5, 5, size[0]+1)
-    lon = np.linspace(175, 185, size[1]+1)
+    lat = np.linspace(-5, 5, size[0])
+    lon = np.linspace(175, 185, size[1])
     
     #initial condition constants
     #self.
@@ -99,7 +99,6 @@ class State():
         self.dy = dy #
         self.lat = lat
         self.lon = lon
-        self.lat, self.lon = np.meshgrid(self.lat, self.lon)
         self.h = h
         
         self.wavespeed = np.sqrt(np.max(self.h)*p.g)
@@ -109,33 +108,15 @@ class State():
         self.v = np.asarray(v, dtype=np.float32) # global y vel array
         
         
-        
         assert (np.isscalar(self.h) or self.h.shape == self.h.shape) # 'or' is short circuit
         self.calcDt()
-        
-        self.coriolis = (np.pi*np.sin(self.lat))/(43200*self.dt) # rotation speed of the earth dtheta/dt
-        
         return
-    def cori(self):
-#         U = R*cos(phi)*O
-#         ui = U+ur
-#         ur = ui-U
-#         dU/dphi = -R*sin(phi)*O
-#         phi = y/R
-#         dphi/dt = v/R
-#         dU/dt = v*(-sin(phi)*O)
-#         dur/dt = dui/dt - dU/dt = v*O*sin(phi)
-#         dur/dt = v*O*sin(phi)
-        #
-        #
-        #
-        
-#         du/dt = v*O*sin(phi)
-#         v = (du/dt)/(Osin(phi))
-#         dv/dt = (u''/sin(phi)-u'cos(phi)/sin^2(phi)*dphi/dt)/O
-        return
+    
     def calcDt(self, fudge = 5):
         self.dt = np.min(self.dx)/(fudge*self.wavespeed)
+        return
+    def setnuv(self, n, u, v):
+        self.n, self.u, self.v = n, u, v
         return
 
 
@@ -145,7 +126,7 @@ state1 = State(initcons.dx, initcons.dy, initcons.lat, initcons.lon, initcons.h,
 #
 
 
-# In[4]:
+# In[10]:
 
 
 #
@@ -174,9 +155,13 @@ def disp3d(aa, box = (None, None, None), lines=(35,35)):
     
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
+#     t = 0
+#     wav = np.cos(2*np.pi*np.linspace(-2, 2, 8))**2 /2
     for a in aa:
         A = a[xx,yy]
+#         col = (wav[-1-t], wav[-t], wav[t-1])
         ax.plot_wireframe(xx, yy, A)
+#         t+=1
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
     ax.set_zlim(zlim)
@@ -244,7 +229,7 @@ def vect(u, v, xlim='default', ylim='default', arws=(10, 10), arwsz=100):
 #
 
 
-# In[5]:
+# In[11]:
 
 
 #
@@ -284,11 +269,10 @@ def dndt(h, n, u, v, dx, dy) :
     hx *= u # momentum of water column.
     hy *= v
     dndt = (div(hx, hy, -dx, -dy))
-    return ( dndt )
+    return ( dndt )l
 def dudt(n, dx) :
     dudt = np.empty((n.shape[0]+1, n.shape[1]), dtype=n.dtype)
     dudt[1:-1] = d_dx(n, -dx/p.g)
-#     dudt += coriolis*v
     dudt[0] = dudt[-1] = 0# reflective boundaries
     return ( dudt )
 def dvdt(n, dy) :
@@ -416,8 +400,6 @@ class testWaveSpeed(unittest.TestCase):
         del(self.dur)
         del(self.dx)
         del(self.dy)
-        del(self.lat)
-        del(self.lon)
         del(self.size)
         del(self.h)
         del(self.n)
@@ -453,27 +435,4 @@ unittest.main(argv=['first-arg-is-ignored'], exit=False)
 
 #unittest.main(argv=['ignored', '-v'], exit=False)      
 #unittest.main()
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
-
-# In[10]:
-
-
-import timeit
-
-def foo():
-    simulate(state1, 250)
-
-print('time to simulate:', timeit.timeit(foo, number=8))
 
